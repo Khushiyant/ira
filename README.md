@@ -6,17 +6,36 @@ A speech-to-language model pipeline that unifies audio generation and natural la
 
 IRA bridges speech synthesis and language model reasoning through a unified multimodal system. It trains a SpeechLM to generate audio tokens directly compatible with LLM representations, enabling seamless integration without intermediate transcription steps.
 
-The architecture features three key innovations: knowledge-distilled SpeechLM aligned with LLM representations, a Perceiver-style adapter for efficient cross-modal projection, and PPO-based reinforced behavior alignment. This enables both natural speech generation conditioned on text and voice characteristics, and immediate downstream language task processing.
+### Key Implementation
+
+- **Knowledge-distilled SpeechLM** aligned with LLM representations
+- **Perceiver-style adapter** for efficient cross-modal projection
+- **PPO-based reinforced behavior alignment** for training
+
+This enables natural speech generation conditioned on text and voice characteristics, plus immediate downstream language task processing.
 
 ## Key Features
 
-The pipeline provides autoregressive audio token generation conditioned on text and speaker embeddings, voice style encoding through CLIP-inspired contrastive learning, and cross-modal alignment using a Perceiver-style architecture. It implements knowledge distillation to transfer learning from teacher LLM to student SpeechLM, reinforced behavior alignment using PPO for training, and unified multimodal processing through SmolLM2-1.7B.
+- Autoregressive audio token generation conditioned on text and speaker embeddings
+- Voice style encoding through CLIP-inspired contrastive learning
+- Cross-modal alignment using Perceiver-style architecture
+- Knowledge distillation from teacher LLM to student SpeechLM
+- Reinforced behavior alignment using PPO
+- Unified multimodal processing through SmolLM2-1.7B
 
 ## Architecture
 
-The system consists of five main components. The audio codec uses EnCodec for 24kHz audio tokenization with configurable bandwidth. The voice encoder is a transformer-based model that extracts speaker embeddings from audio features. The SpeechLM is a 12-layer transformer with rotary positional embeddings that generates audio tokens. The audio adapter uses a Perceiver-based architecture to project audio embeddings to LLM space. Finally, the multimodal LLM integrates SmolLM2-1.7B with LoRA fine-tuning for efficient adaptation.
+### Core Components
 
-Training combines knowledge distillation from a frozen teacher LLM with PPO-based reinforcement learning for behavior alignment. The system uses multi-task learning with uncertainty weighting and mixed precision training (BF16) with gradient accumulation for efficiency.
+1. **Audio Codec**: EnCodec for 24kHz audio tokenization with configurable bandwidth
+2. **Voice Encoder**: Transformer-based model extracting speaker embeddings from audio features
+3. **SpeechLM**: 12-layer transformer with rotary positional embeddings for audio token generation
+4. **Audio Adapter**: Perceiver-based architecture projecting audio embeddings to LLM space
+5. **Multimodal LLM**: SmolLM2-1.7B with LoRA fine-tuning for efficient adaptation
+
+### Training Strategy
+
+The system combines knowledge distillation from a frozen teacher LLM with PPO-based reinforcement learning for behavior alignment. Training uses multi-task learning with uncertainty weighting and mixed precision (BF16) with gradient accumulation for efficiency.
 
 ## Installation
 
@@ -72,11 +91,22 @@ pipeline.save_audio(result["audio_waveform"], "output.wav")
 
 ## Model Architecture Details
 
-The SpeechLM transformer uses a hidden dimension of 768 across 12 layers with 12 attention heads. It supports sequences up to 8192 tokens and employs RoPE (Rotary Position Embeddings) for better length extrapolation. The model uses cross-attention to condition on text and speaker embeddings during generation.
+**SpeechLM Transformer**:
+- 768 hidden dimensions across 12 layers with 12 attention heads
+- Supports sequences up to 8192 tokens
+- RoPE (Rotary Position Embeddings) for length extrapolation
+- Cross-attention conditioning on text and speaker embeddings
 
-The audio adapter transforms 768-dimensional audio embeddings from the SpeechLM into 4096-dimensional vectors compatible with SmolLM2. It uses 32 Perceiver query tokens across 4 adapter layers to compress variable-length audio into a fixed-size representation that the LLM can process.
+**Audio Adapter**:
+- Transforms 768-dim audio embeddings to 4096-dim vectors for SmolLM2
+- 32 Perceiver query tokens across 4 adapter layers
+- Compresses variable-length audio into fixed-size LLM-compatible representation
 
-The voice encoder processes 128-dimensional mel-spectrogram features through a 512-dimensional hidden layer to produce 256-dimensional embeddings. It uses attention pooling for sequence aggregation and trains with CLIP-style contrastive learning against text descriptions of voice characteristics.
+**Voice Encoder**:
+- Processes 128-dim mel-spectrogram features through 512-dim hidden layer
+- Produces 256-dimensional embeddings
+- Attention pooling for sequence aggregation
+- CLIP-style contrastive learning with text descriptions of voice characteristics
 
 ## Data Format
 
@@ -109,17 +139,44 @@ Each JSON file should contain metadata in this format:
 
 ## Performance Considerations
 
-Training requires substantial computational resources. We recommend an A100 40GB GPU or equivalent, though the system can run on GPUs with at least 16GB of memory. Training typically requires approximately 100 epochs for convergence. Each checkpoint is around 1.5GB in size, containing the SpeechLM and adapter weights.
+**Hardware Requirements**:
+- Recommended: A100 40GB GPU or equivalent
+- Minimum: GPU with at least 16GB memory
+
+**Training Metrics**:
+- Approximately 100 epochs for convergence
+- Checkpoint size: ~1.5GB (SpeechLM + adapter weights)
 
 ## Logging and Monitoring
 
-The pipeline supports Weights & Biases (wandb), TensorBoard, and console logging. It tracks training and validation loss, knowledge distillation loss, RL rewards and policy metrics, learning rate schedule, and GPU memory usage throughout training.
+**Supported Platforms**:
+- Weights & Biases (wandb)
+- TensorBoard
+- Console logging
 
-Checkpoints are saved periodically and include model state dictionaries, optimizer states, training step and epoch information, and best validation metrics for model selection.
+**Tracked Metrics**:
+- Training and validation loss
+- Knowledge distillation loss
+- RL rewards and policy metrics
+- Learning rate schedule
+- GPU memory usage
+
+**Checkpoints Include**:
+- Model state dictionaries
+- Optimizer states
+- Training step and epoch information
+- Best validation metrics for model selection
 
 ## Future Work
 
-Planned improvements include training a custom transformer architecture from scratch, support for streaming audio generation, enhanced multi-speaker synthesis capabilities, additional language support beyond English, model quantization for efficient deployment, and better handling of extended context lengths.
+Planned improvements include:
+
+- Training a custom transformer architecture from scratch
+- Support for streaming audio generation
+- Enhanced multi-speaker synthesis capabilities
+- Additional language support beyond English
+- Model quantization for efficient deployment
+- Better handling of extended context lengths
 
 ## Citation
 
