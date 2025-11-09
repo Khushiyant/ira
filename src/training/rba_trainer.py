@@ -203,7 +203,20 @@ class RBATrainer:
         with self.accelerator.accumulate(self.speech_lm):
             # Unpack batch
             audio_tokens = batch["audio_tokens"]
-            speaker_embeddings = batch["speaker_embeddings"]
+            # Handle both speaker_ids and speaker_embeddings
+            if "speaker_embeddings" in batch:
+                speaker_embeddings = batch["speaker_embeddings"]
+            elif "speaker_ids" in batch:
+                # TODO: Add speaker embedding lookup table
+                # For now, create dummy embeddings
+                speaker_ids = batch["speaker_ids"]
+                speaker_embeddings = torch.zeros(
+                    speaker_ids.shape[0], 256,
+                    device=speaker_ids.device
+                )
+            else:
+                raise ValueError("Batch must contain either 'speaker_embeddings' or 'speaker_ids'")
+            
             text_tokens = batch.get("text_tokens")
             labels = batch.get("labels", audio_tokens)
             

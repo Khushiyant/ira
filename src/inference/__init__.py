@@ -28,6 +28,7 @@ class SpeechToLLMPipeline:
         multimodal_llm: MultimodalLLMWrapper,
         audio_codec: Optional[EnCodecWrapper] = None,
         voice_encoder: Optional[Union[VoiceStyleEncoder, CLIPVoiceEncoder]] = None,
+        text_tokenizer = None,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         """
@@ -38,6 +39,7 @@ class SpeechToLLMPipeline:
             multimodal_llm: Multimodal LLM wrapper
             audio_codec: Audio codec for tokenization
             voice_encoder: Voice style encoder
+            text_tokenizer: Text tokenizer (uses multimodal_llm's tokenizer if None)
             device: Device to run on
         """
         self.device = device
@@ -49,6 +51,9 @@ class SpeechToLLMPipeline:
         # Codec and tokenizer
         self.audio_codec = audio_codec or EnCodecWrapper(device=device)
         self.audio_tokenizer = AudioTokenizer(codec=self.audio_codec)
+        
+        # Text tokenizer - use the one from multimodal_llm if not provided
+        self.text_tokenizer = text_tokenizer if text_tokenizer is not None else multimodal_llm.tokenizer
         
         # Voice encoder
         self.voice_encoder = voice_encoder
@@ -159,10 +164,14 @@ class SpeechToLLMPipeline:
         return audio_tokens
     
     def _tokenize_text(self, text: str) -> torch.Tensor:
-        """Simple text tokenization (replace with proper tokenizer)."""
-        # Placeholder: convert characters to IDs
-        tokens = [ord(c) % 1000 for c in text[:512]]
-        return torch.tensor([tokens], dtype=torch.long)
+        """Tokenize text using proper HuggingFace tokenizer."""
+        return self.text_tokenizer(
+            text,
+            max_length=512,
+            padding=False,
+            truncation=True,
+            return_tensors="pt",
+        )["input_ids"]
     
     @torch.no_grad()
     def speech_tokens_to_audio(
@@ -327,11 +336,18 @@ def create_pipeline_from_checkpoints(
     Returns:
         Configured pipeline
     """
+    # Import here to avoid circular imports
+    from ..utils import TextTokenizerWrapper
+    
+    # Create text tokenizer
+    text_tokenizer = TextTokenizerWrapper(model_name=llm_name_or_path)
+    
     # Load SpeechLM
     speech_lm = SpeechLMTransformer(
         vocab_size=1024,
         hidden_dim=768,
         num_layers=12,
+        text_vocab_size=text_tokenizer.vocab_size,  # Use actual vocab size
     )
     speech_lm.load_state_dict(torch.load(speech_lm_checkpoint, map_location=device))
     
@@ -361,6 +377,7 @@ def create_pipeline_from_checkpoints(
         speech_lm=speech_lm,
         multimodal_llm=multimodal_llm,
         voice_encoder=voice_encoder,
+        text_tokenizer=text_tokenizer,  # Pass the text tokenizer
         device=device,
     )
     

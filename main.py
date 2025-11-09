@@ -1,6 +1,7 @@
 """Main training script for Speech-to-LLM pipeline."""
 
 import torch
+import torch.nn as nn
 import argparse
 from pathlib import Path
 import yaml
@@ -17,6 +18,7 @@ from src.model import (
 )
 from src.training import RBATrainer, KnowledgeDistillationLoss
 from src.data import SpeechLMDataset, SpeechLMCollator
+from src.utils import TextTokenizerWrapper
 from torch.utils.data import DataLoader
 
 
@@ -38,14 +40,21 @@ def load_config(config_path: str):
 def create_models(config):
     """Create all models from configuration."""
     
-    print("Creating models...")
-    
     # Audio codec
     codec = EnCodecWrapper(
         model_name=config.codec.model_name,
         bandwidth=config.codec.bandwidth,
     )
     tokenizer = AudioTokenizer(codec=codec)
+    
+    # Text tokenizer (proper HuggingFace tokenizer)
+    text_tokenizer = TextTokenizerWrapper(model_name=config.model.llm.name_or_path)
+    print(f"  - Text tokenizer vocab size: {text_tokenizer.vocab_size}")
+    
+    # Speaker embedding lookup table
+    num_speakers = config.model.get("num_speakers", 1000)  # Default to 1000 speakers
+    speaker_embed_dim = config.model.speech_lm.speaker_embed_dim
+    speaker_embedding_table = nn.Embedding(num_speakers, speaker_embed_dim)
     
     # Voice encoder
     voice_encoder = CLIPVoiceEncoder(
@@ -63,7 +72,7 @@ def create_models(config):
         dropout=config.model.speech_lm.dropout,
         use_rope=config.model.speech_lm.use_rope,
         speaker_embed_dim=config.model.speech_lm.speaker_embed_dim,
-        text_vocab_size=config.model.speech_lm.text_vocab_size,
+        text_vocab_size=text_tokenizer.vocab_size,  # Use actual vocab size from tokenizer
         tie_embeddings=config.model.speech_lm.tie_embeddings,
     )
     
@@ -90,10 +99,14 @@ def create_models(config):
     print(f"✓ Models created successfully")
     print(f"  - SpeechLM: {sum(p.numel() for p in speech_lm.parameters())/1e6:.1f}M params")
     print(f"  - Audio Adapter: {sum(p.numel() for p in audio_adapter.parameters())/1e6:.1f}M params")
+    print(f"  - Speaker Embeddings: {num_speakers} speakers, {speaker_embed_dim}D")
+    print(f"  - Text vocab size: {text_tokenizer.vocab_size}")
     
     return {
         "codec": codec,
         "tokenizer": tokenizer,
+        "text_tokenizer": text_tokenizer,
+        "speaker_embedding_table": speaker_embedding_table,
         "voice_encoder": voice_encoder,
         "speech_lm": speech_lm,
         "audio_adapter": audio_adapter,
@@ -101,7 +114,7 @@ def create_models(config):
     }
 
 
-def create_dataloaders(config, tokenizer):
+def create_dataloaders(config, tokenizer, text_tokenizer, speaker_embedding_table=None):
     """Create training and validation dataloaders."""
     
     print("Creating dataloaders...")
@@ -125,7 +138,8 @@ def create_dataloaders(config, tokenizer):
     # Collator
     collator = SpeechLMCollator(
         audio_tokenizer=tokenizer,
-        text_tokenizer=None,  # Use simple tokenizer for now
+        text_tokenizer=text_tokenizer,  # Now using proper tokenizer
+        speaker_embedding_table=speaker_embedding_table,
     )
     
     # Dataloaders
@@ -245,7 +259,12 @@ def main():
     models = create_models(config)
     
     # Create dataloaders
-    train_loader, val_loader = create_dataloaders(config, models["tokenizer"])
+    train_loader, val_loader = create_dataloaders(
+        config, 
+        models["tokenizer"],
+        models["text_tokenizer"],
+        models["speaker_embedding_table"]
+    )
     
     # Train
     train(config, models, train_loader, val_loader)

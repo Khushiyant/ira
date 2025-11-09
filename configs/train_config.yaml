@@ -2,6 +2,9 @@
 
 # Model Configuration
 model:
+  # Number of unique speakers in dataset (for embedding lookup)
+  num_speakers: 1000
+  
   speech_lm:
     vocab_size: 1024  # Audio token vocabulary size (from EnCodec)
     hidden_dim: 768
@@ -11,7 +14,7 @@ model:
     dropout: 0.1
     use_rope: true
     speaker_embed_dim: 256
-    text_vocab_size: 32000
+    text_vocab_size: null  # Auto-detected from tokenizer (SmolLM2 ~49152)
     tie_embeddings: false
   
   voice_encoder:
