@@ -1,0 +1,130 @@
+# Training Configuration for Speech-to-LLM Pipeline
+
+# Model Configuration
+model:
+  speech_lm:
+    vocab_size: 1024  # Audio token vocabulary size (from EnCodec)
+    hidden_dim: 768
+    num_layers: 12
+    num_heads: 12
+    max_seq_len: 8192
+    dropout: 0.1
+    use_rope: true
+    speaker_embed_dim: 256
+    text_vocab_size: 32000
+    tie_embeddings: false
+  
+  voice_encoder:
+    input_dim: 128  # Mel-spectrogram features
+    hidden_dim: 512
+    embedding_dim: 256
+    num_layers: 6
+    num_heads: 8
+    dropout: 0.1
+  
+  audio_adapter:
+    audio_dim: 768
+    llm_dim: 4096  # SmolLM2 hidden size
+    num_adapter_layers: 4
+    num_query_tokens: 32
+    use_perceiver: true
+    dropout: 0.1
+  
+  llm:
+    name_or_path: "HuggingFaceTB/SmolLM2-1.7B"
+    freeze_llm: false
+    use_lora: true
+    lora_rank: 16
+    lora_alpha: 32
+
+# Audio Codec Configuration
+codec:
+  model_name: "encodec_24khz"
+  bandwidth: 6.0  # kbps
+  sample_rate: 24000
+
+# Training Configuration
+training:
+  # Optimizer
+  learning_rate: 1e-4
+  weight_decay: 0.01
+  warmup_steps: 1000
+  max_grad_norm: 1.0
+  
+  # Batch sizes
+  batch_size: 16
+  gradient_accumulation_steps: 4
+  eval_batch_size: 32
+  
+  # Epochs and steps
+  num_epochs: 100
+  eval_steps: 500
+  save_steps: 1000
+  logging_steps: 10
+  
+  # RBA (Reinforced Behavior Alignment)
+  use_rba: true
+  rl_reward_weight: 0.3
+  ppo_clip_epsilon: 0.2
+  value_loss_coef: 0.5
+  entropy_coef: 0.01
+  
+  # Knowledge Distillation
+  kd_temperature: 2.0
+  kd_alpha: 0.5
+  
+  # Mixed precision
+  mixed_precision: "bf16"
+  
+  # Distributed training
+  distributed: true
+  num_gpus: 1
+
+# Data Configuration
+data:
+  train_dir: "data/train"
+  val_dir: "data/val"
+  test_dir: "data/test"
+  
+  max_audio_length: 30  # seconds
+  max_text_length: 512  # tokens
+  
+  # Augmentation
+  use_augmentation: true
+  time_stretch: [0.9, 1.1]
+  pitch_shift: [-2, 2]
+  add_noise: true
+  noise_snr: [10, 30]
+  
+  # Data loader
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+
+# Logging and Checkpointing
+logging:
+  use_wandb: true
+  wandb_project: "speech-llm-pipeline"
+  wandb_entity: null
+  wandb_run_name: null
+  
+  use_tensorboard: true
+  tensorboard_dir: "runs"
+  
+  output_dir: "checkpoints"
+  logging_dir: "logs"
+
+# Inference Configuration
+inference:
+  temperature: 0.7
+  top_k: 50
+  top_p: 0.95
+  max_length: 1024
+  num_return_sequences: 1
+
+# Hardware Configuration
+hardware:
+  device: "cuda"
+  cpu_threads: 8
+  cuda_deterministic: false
+  seed: 42
