@@ -102,6 +102,19 @@ def main():
         num_workers=config.data.num_workers
     )
 
+    device = config.hardware.device
+    
+    # Auto-detect Mac MPS
+    if device == "cuda" and not torch.cuda.is_available():
+        if torch.backends.mps.is_available():
+            print("Switching to MPS (Mac Apple Silicon)")
+            device = "mps"
+        else:
+            print("Warning: GPU not available, falling back to CPU")
+            device = "cpu"
+            
+    print(f"Using device: {device}")
+
     # 4. Trainer
     trainer = RBATrainer(
         speech_lm=speech_lm,

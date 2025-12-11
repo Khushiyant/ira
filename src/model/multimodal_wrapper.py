@@ -31,23 +31,29 @@ class MultimodalLLMWrapper(nn.Module):
         # Configure Quantization
         quantization_config = None
         if load_in_4bit:
-            from transformers import BitsAndBytesConfig
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
-            )
+            # Check if bitsandbytes is actually installed
+            try:
+                from transformers import BitsAndBytesConfig
+                import bitsandbytes as bnb
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                )
+            except ImportError:
+                print("WARNING: bitsandbytes not installed. Skipping 4-bit quantization.")
+                load_in_4bit = False
 
         # Load LLM
         self.llm = AutoModelForCausalLM.from_pretrained(
             llm_name_or_path,
-            quantization_config=quantization_config, # Pass config
-            torch_dtype=torch.bfloat16,
+            quantization_config=quantization_config,
+            # Use float16 for Mac (MPS) stability, bfloat16 for Nvidia
+            torch_dtype=torch.float16 if torch.backends.mps.is_available() else torch.bfloat16,
             device_map="auto",
             trust_remote_code=True,
         )
-        # ... rest of the init code ...
         self.tokenizer = AutoTokenizer.from_pretrained(llm_name_or_path, trust_remote_code=True)
         
         # Add special tokens for audio
