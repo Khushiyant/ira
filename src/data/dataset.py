@@ -18,15 +18,6 @@ class SpeechLMDataset(Dataset):
         max_audio_length: int = 30,  # seconds
         sample_rate: int = 24000,
     ):
-        """
-        Initialize dataset.
-        
-        Args:
-            data_dir: Directory containing audio files and metadata
-            split: Dataset split (train/val/test)
-            max_audio_length: Maximum audio length in seconds
-            sample_rate: Target sample rate
-        """
         self.data_dir = Path(data_dir)
         self.split = split
         self.max_audio_length = max_audio_length
@@ -41,7 +32,6 @@ class SpeechLMDataset(Dataset):
         return len(self.metadata)
     
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        """Get item by index."""
         item = self.metadata[idx]
         
         # Load audio
@@ -85,15 +75,6 @@ class MultimodalDataset(Dataset):
         max_audio_length: int = 30,
         max_text_length: int = 512,
     ):
-        """
-        Initialize multimodal dataset.
-        
-        Args:
-            data_dir: Directory containing data
-            split: Dataset split
-            max_audio_length: Max audio length in seconds
-            max_text_length: Max text length in tokens
-        """
         self.data_dir = Path(data_dir)
         self.split = split
         self.max_audio_length = max_audio_length
@@ -108,7 +89,6 @@ class MultimodalDataset(Dataset):
         return len(self.metadata)
     
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        """Get multimodal item."""
         item = self.metadata[idx]
         
         # Load audio if available
@@ -148,10 +128,13 @@ class SpeechLMCollator:
         
         Args:
             audio_tokenizer: Audio tokenizer
-            text_tokenizer: Text tokenizer
+            text_tokenizer: Text tokenizer (Required)
             speaker_embedding_table: Optional speaker embedding lookup table
             padding_value: Padding value
         """
+        if text_tokenizer is None:
+            raise ValueError("text_tokenizer is required for SpeechLMCollator.")
+            
         self.audio_tokenizer = audio_tokenizer
         self.text_tokenizer = text_tokenizer
         self.speaker_embedding_table = speaker_embedding_table
@@ -164,7 +147,7 @@ class SpeechLMCollator:
         texts = [item["text"] for item in batch]
         speaker_ids = torch.tensor([item["speaker_id"] for item in batch])
         
-        # Tokenize audio
+        # --- Audio Tokenization ---
         audio_tokens_list = []
         for audio in audios:
             tokens = self.audio_tokenizer.tokenize(audio.unsqueeze(0))
@@ -183,75 +166,34 @@ class SpeechLMCollator:
             audio_tokens[i, :len(tokens)] = tokens
             audio_mask[i, :len(tokens)] = 1
         
-        # Tokenize text with proper tokenizer
-        if self.text_tokenizer is not None:
-            # Use HuggingFace tokenizer
-            text_tokens_padded = []
-            text_mask = []
-            
-            for text in texts:
-                tokens_dict = self.text_tokenizer(
-                    text,
-                    max_length=512,
-                    padding=False,
-                    truncation=True,
-                    return_attention_mask=True,
-                )
-                text_tokens_padded.append(tokens_dict["input_ids"].squeeze(0))
-                text_mask.append(tokens_dict["attention_mask"].squeeze(0))
-            
-            # Pad to same length
-            max_text_len = max(t.shape[0] for t in text_tokens_padded)
-            text_tokens_batch = torch.full(
-                (len(batch), max_text_len),
-                self.text_tokenizer.pad_token_id,
-                dtype=torch.long,
-            )
-            text_mask_batch = torch.zeros(len(batch), max_text_len)
-            
-            for i, (tokens, mask) in enumerate(zip(text_tokens_padded, text_mask)):
-                text_tokens_batch[i, :len(tokens)] = tokens
-                text_mask_batch[i, :len(mask)] = mask
-            
-            text_tokens_padded = text_tokens_batch
-            text_mask = text_mask_batch
-        else:
-            # Fallback to simple tokenization (not recommended)
-            text_tokens = []
-            for text in texts:
-                tokens = [ord(c) % 1000 for c in text[:512]]
-                text_tokens.append(torch.tensor(tokens, dtype=torch.long))
-            
-            # Pad text tokens
-            max_text_len = max(t.shape[0] for t in text_tokens)
-            text_tokens_padded = torch.full(
-                (len(batch), max_text_len),
-                self.padding_value,
-                dtype=torch.long,
-            )
-            text_mask = torch.zeros(len(batch), max_text_len)
-            
-            for i, tokens in enumerate(text_tokens):
-                text_tokens_padded[i, :len(tokens)] = tokens
-                text_mask[i, :len(tokens)] = 1
+        # --- Text Tokenization (Fixed) ---
+        # Use HuggingFace tokenizer correctly for batch
+        tokens_dict = self.text_tokenizer(
+            texts,
+            max_length=512,
+            padding=True,
+            truncation=True,
+            return_attention_mask=True,
+            return_tensors="pt"
+        )
         
+        text_tokens_padded = tokens_dict["input_ids"]
+        text_mask = tokens_dict["attention_mask"]
+        
+        # --- Speaker Embeddings ---
         # Convert speaker IDs to embeddings if table is available
+        result = {
+            "audio_tokens": audio_tokens,
+            "audio_mask": audio_mask,
+            "text_tokens": text_tokens_padded,
+            "text_mask": text_mask,
+            "labels": audio_tokens.clone(),  # For autoregressive training
+        }
+
         if self.speaker_embedding_table is not None:
             speaker_embeddings = self.speaker_embedding_table(speaker_ids)
-            return {
-                "audio_tokens": audio_tokens,
-                "audio_mask": audio_mask,
-                "text_tokens": text_tokens_padded,
-                "text_mask": text_mask,
-                "speaker_embeddings": speaker_embeddings,
-                "labels": audio_tokens.clone(),  # For autoregressive training
-            }
+            result["speaker_embeddings"] = speaker_embeddings
         else:
-            return {
-                "audio_tokens": audio_tokens,
-                "audio_mask": audio_mask,
-                "text_tokens": text_tokens_padded,
-                "text_mask": text_mask,
-                "speaker_ids": speaker_ids,
-                "labels": audio_tokens.clone(),  # For autoregressive training
-            }
+            result["speaker_ids"] = speaker_ids
+            
+        return result
