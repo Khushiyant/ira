@@ -59,7 +59,8 @@ def main():
     multimodal_llm = MultimodalLLMWrapper(
         llm_name_or_path=config.model.llm.name_or_path,
         audio_adapter=audio_adapter,
-        freeze_llm=True 
+        freeze_llm=True,
+        load_in_4bit=config.model.llm.get("load_in_4bit", False) # Pass from config
     )
     
     # 2. Load Checkpoints
@@ -80,7 +81,15 @@ def main():
             print("Loaded checkpoint weights.")
 
     # 3. Data
-    train_dataset = SpeechLMDataset(config.data.train_dir, split="train")
+    print(f"Loading dataset from {config.data.train_dir}...")
+    
+    # Pass download flag to dataset
+    train_dataset = SpeechLMDataset(
+        data_dir=config.data.train_dir, 
+        split="train",
+        download=config.data.get("download", False),
+        dataset_name=config.data.get("dataset_name", "ljspeech")
+    )
     collator = SpeechLMCollator(
         audio_tokenizer=audio_tokenizer,
         text_tokenizer=text_tokenizer,

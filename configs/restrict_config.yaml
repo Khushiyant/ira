@@ -1,0 +1,76 @@
+model:
+  num_speakers: 1000
+  
+  speech_lm:
+    vocab_size: 1024
+    hidden_dim: 512       # Reduced from 768 to save memory
+    num_layers: 8         # Reduced from 12 to 8
+    num_heads: 8
+    max_seq_len: 2048     # Reduced from 8192 (Crucial!)
+    dropout: 0.1
+    use_rope: true
+    speaker_embed_dim: 128
+    tie_embeddings: false
+  
+  voice_encoder:
+    input_dim: 128
+    hidden_dim: 256       # Reduced
+    embedding_dim: 128    # Reduced
+    num_layers: 4
+    num_heads: 4
+  
+  audio_adapter:
+    audio_dim: 512        # Must match speech_lm.hidden_dim
+    llm_dim: 2048         # SmolLM2 hidden size (check model card, likely 2048 or 4096)
+    num_adapter_layers: 2 # Reduced
+    num_query_tokens: 16  # Reduced from 32
+    use_perceiver: true
+  
+  llm:
+    name_or_path: "HuggingFaceTB/SmolLM2-1.7B"
+    freeze_llm: true
+    use_lora: false       # We will use 4-bit loading instead
+    load_in_4bit: true    # NEW FLAG for laptop users
+
+codec:
+  model_name: "encodec_24khz"
+  bandwidth: 6.0
+  sample_rate: 24000
+
+training:
+  learning_rate: 3e-4
+  batch_size: 2           # Tiny batch size to fit VRAM
+  gradient_accumulation_steps: 16  # Simulate batch size 32 (2 * 16)
+  eval_batch_size: 2
+  
+  num_epochs: 50
+  save_steps: 500
+  logging_steps: 10
+  
+  # RBA (RL)
+  use_rba: true
+  rl_reward_weight: 0.1   # Lower reward weight for stability
+  
+  mixed_precision: "bf16" # RTX 50-series supports bf16 nicely
+  distributed: false      # Single GPU
+  num_gpus: 1
+
+data:
+  train_dir: "data"
+  val_dir: "data"
+  dataset_name: "ljspeech"
+  download: true
+  
+  max_audio_length: 10    # Limit to 10 seconds (approx 750 tokens)
+  max_text_length: 256
+  num_workers: 2          # Save system RAM (16GB is tight)
+  pin_memory: false       # Save system RAM
+
+logging:
+  use_wandb: false        # Optional
+  output_dir: "checkpoints_laptop"
+  logging_dir: "logs_laptop"
+
+hardware:
+  device: "cuda"
+  seed: 42

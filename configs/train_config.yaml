@@ -131,3 +131,13 @@ hardware:
   cpu_threads: 8
   cuda_deterministic: false
   seed: 42
+
+data:
+  train_dir: "data"          # Directory where data will be downloaded
+  val_dir: "data"
+  test_dir: "data"
+  
+  dataset_name: "ljspeech"   # Tells the code to use LJSpeech logic
+  download: true             # Enable auto-download
+  
+  max_audio_length: 30  

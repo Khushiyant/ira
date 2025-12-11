@@ -20,33 +20,34 @@ class MultimodalLLMWrapper(nn.Module):
         audio_adapter: AudioToLLMAdapter,
         freeze_llm: bool = False,
         use_lora: bool = True,
+        load_in_4bit: bool = False,  # Add this argument
         lora_rank: int = 16,
         lora_alpha: int = 32,
         audio_start_token: str = "<|audio_start|>",
         audio_end_token: str = "<|audio_end|>",
     ):
-        """
-        Initialize multimodal LLM wrapper.
-        
-        Args:
-            llm_name_or_path: HuggingFace model name or path
-            audio_adapter: Audio-to-LLM adapter module
-            freeze_llm: Whether to freeze LLM weights
-            use_lora: Use LoRA for efficient fine-tuning
-            lora_rank: LoRA rank
-            lora_alpha: LoRA alpha
-            audio_start_token: Special token marking audio start
-            audio_end_token: Special token marking audio end
-        """
         super().__init__()
         
+        # Configure Quantization
+        quantization_config = None
+        if load_in_4bit:
+            from transformers import BitsAndBytesConfig
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4"
+            )
+
         # Load LLM
         self.llm = AutoModelForCausalLM.from_pretrained(
             llm_name_or_path,
+            quantization_config=quantization_config, # Pass config
             torch_dtype=torch.bfloat16,
             device_map="auto",
             trust_remote_code=True,
         )
+        # ... rest of the init code ...
         self.tokenizer = AutoTokenizer.from_pretrained(llm_name_or_path, trust_remote_code=True)
         
         # Add special tokens for audio
