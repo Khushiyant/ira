@@ -156,6 +156,9 @@ class RBATrainer:
         )
         
         for batch in progress_bar:
+            # Move batch to device
+            batch = {k: v.to(self.accelerator.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+            
             if self.stage == 1:
                 losses = self.train_step_stage_1(batch)
             elif self.stage == 2:

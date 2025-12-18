@@ -49,14 +49,14 @@ codec:
 # Training Configuration
 training:
   # Optimizer
-  learning_rate: 1e-4
+  learning_rate: 0.0001
   weight_decay: 0.01
   warmup_steps: 1000
   max_grad_norm: 1.0
   
   # Batch sizes
-  batch_size: 16
-  gradient_accumulation_steps: 4
+  batch_size: 1
+  gradient_accumulation_steps: 16
   eval_batch_size: 32
   
   # Epochs and steps
@@ -133,11 +133,12 @@ hardware:
   seed: 42
 
 data:
-  train_dir: "data"          # Directory where data will be downloaded
-  val_dir: "data"
-  test_dir: "data"
+  train_dir: "."          # Directory where data will be downloaded
+  val_dir: "."
+  test_dir: "."
   
   dataset_name: "ljspeech"   # Tells the code to use LJSpeech logic
-  download: true             # Enable auto-download
+  download: false             # Enable auto-download
   
   max_audio_length: 30  
+  num_workers: 0

@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import os
 import random
+import soundfile as sf
 import csv
 
 class SpeechLMDataset(Dataset):
@@ -117,7 +118,12 @@ class SpeechLMDataset(Dataset):
             
         # Load and Resample
         # Note: We do online resampling here to save disk space
-        audio, sr = torchaudio.load(str(audio_path))
+        audio, sr = sf.read(str(audio_path))
+        audio = torch.from_numpy(audio).float()
+        if audio.ndim == 1:
+            audio = audio.unsqueeze(0)  # (1, samples)
+        elif audio.ndim == 2:
+            audio = audio.T  # (channels, samples)
         
         if sr != self.sample_rate:
             resampler = torchaudio.transforms.Resample(sr, self.sample_rate)

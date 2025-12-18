@@ -6,3 +6,5 @@ data/
 
 wandb
 logs/
+
+*.json
